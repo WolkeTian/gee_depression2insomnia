@@ -24,16 +24,16 @@ function CPM_Results = cpm_tian(fnc_mats,behav_vector,thresh_set, fold, isDirect
     
     predict_behav = zeros(numel(behav_vector), 1);
     predict_behav = predict_behav(1:floor(sub_nums/k) *k); % k-fold后，不能整除的尾部剔除掉
-    [behav_pred_pos, behav_pred_neg] = deal(predict_behav); % 生成正负两个供后续可能使�?
+    [behav_pred_pos, behav_pred_neg] = deal(predict_behav); % 生成正负两个供后续可能使用
     % initial edge mask sets, k fold to store k*M*M mat
     [mask_pos_set, mask_neg_set] = deal(zeros(k, node_nums, node_nums));
     
-    issigmoidal = 1; % 默认不启用sigmoidal函数
+    issigmoidal = 0; % 默认不启用sigmoidal函数
     if issigmoidal disp('Sigmoidal function is actived'); end
     for i = 1:k
         
         leftout = i:k:sub_nums; %抛出作为验证集的
-        leftout = leftout(1:floor(sub_nums/k)); % 维持长度为整除项 且一�?
+        leftout = leftout(1:floor(sub_nums/k)); % 维持长度为整除项 且一致
         % fprintf('\n Leaving out subject # %6.3f',leftout); % 输出交叉验证抛出被试信息
         % leave out subject from matrices and behavior
         train_fnc = fnc2d; train_fnc(leftout,:) = [];
@@ -44,18 +44,18 @@ function CPM_Results = cpm_tian(fnc_mats,behav_vector,thresh_set, fold, isDirect
 
         % correlate all edges with behavior
 
-        [r_mat,p_mat] = corr(train_fnc,train_behav); %计算抛出�?个被试后的r和p，未校正
+        [r_mat,p_mat] = corr(train_fnc,train_behav); %计算抛出一个被试后的r和p，未校正
         % [r_mat,p_mat] = corr(train_fnc,train_behav, 'Type', 'Spearman'); % 斯皮尔曼等级相关
         r_mat(isnan(r_mat))= 0;
         p_mat(isnan(p_mat))= 0; % nan变成0
 
         % set threshold and define masks
 
-        pos_mask = zeros(size(train_fnc,2),1); % edges数字*1的向�?
+        pos_mask = zeros(size(train_fnc,2),1); % edges数字*1的向量
         neg_mask = zeros(size(train_fnc,2),1);
 
 
-        pos_edges = find(r_mat > 0 & p_mat < thresh); % 找到p小于阈�?�的正负连接
+        pos_edges = find(r_mat > 0 & p_mat < thresh); % 找到p小于阈值的正负连接
         neg_edges = find(r_mat < 0 & p_mat < thresh);
 
         pos_mask(pos_edges) = 1; % 根据上边的，制作mask
@@ -63,12 +63,12 @@ function CPM_Results = cpm_tian(fnc_mats,behav_vector,thresh_set, fold, isDirect
         
         if issigmoidal
             %----------------------------alternative sigmoidal 加权--------------
-            % 转换p阈�?�到r阈�??            
+            % 转换p阈值到r阈值            
             T_thre = tinv(thresh/2, numel(train_behav) - 2); %Student's t inverse cumulative distribution function
-            R_thre = sqrt(T_thre^2/(numel(train_behav) - 2 + T_thre^2)); %得到的R阈�??
+            R_thre = sqrt(T_thre^2/(numel(train_behav) - 2 + T_thre^2)); %得到的R阈值
                     
             % 用sigmoidal函数创建加权mask
-            % 当相�?=R/3时，weight = 0.5; 当相�?=R时，weight = 0.88, R越大权重越大
+            % 当相关=R/3时，weight = 0.5; 当相关=R时，weight = 0.88, R越大权重越大
             pos_mask(pos_edges) = sigmf(r_mat(pos_edges), [3/R_thre, R_thre/3]);
             neg_mask(neg_edges) = sigmf(r_mat(neg_edges), [-3/R_thre, R_thre/3]);
         end
@@ -92,13 +92,13 @@ function CPM_Results = cpm_tian(fnc_mats,behav_vector,thresh_set, fold, isDirect
         
         if isDirected == 1
             % build model on TRAIN subs
-            poly_pos = polyfit(sum_pos_links, train_behav,6); % 用训练被试显著相关的连接值的和，预测行为，线性拟�?
+            poly_pos = polyfit(sum_pos_links, train_behav,6); % 用训练被试显著相关的连接值的和，预测行为，线性拟合
             poly_neg = polyfit(sum_neg_links, train_behav,6);
             % 模型，y = a*x + b;得到两个系数，a和b
             % run model on TEST sub
             
             behav_pred_pos(leftout) = polyval(poly_pos, test_sumpos);
-            behav_pred_neg(leftout) = polyval(poly_neg, test_sumneg);% 得到这层循环验证集用正\负连接的预测�?
+            behav_pred_neg(leftout) = polyval(poly_neg, test_sumneg);% 得到这层循环验证集用正\负连接的预测值
             
             %behav_pred_pos(leftout) = coef_pos(1)*test_sumpos + coef_pos(2);
             %behav_pred_neg(leftout) = coef_neg(1)*test_sumneg + coef_neg(2); 
@@ -110,7 +110,7 @@ function CPM_Results = cpm_tian(fnc_mats,behav_vector,thresh_set, fold, isDirect
             % 进行验证
             predict_behav(leftout) = coef(1) * test_sumpos + coef(2) * test_sumneg + coef(3);
             
-%             % 不用加权和，用全部单个连接信�?
+%             % 不用加权和，用全部单个连接信息组成多元线性回归
 %             coefs = regress(train_behav,[train_fnc(:, pos_edges), train_fnc(:, neg_edges), ones(size(train_fnc, 1), 1)]);
 %             % 进行验证
 %             predict_behav(leftout) = [test_fnc(:, pos_edges), test_fnc(:, neg_edges), ones(size(test_fnc, 1), 1)] * coefs;
@@ -119,29 +119,43 @@ function CPM_Results = cpm_tian(fnc_mats,behav_vector,thresh_set, fold, isDirect
     % 循环结束
     
     if isDirected == 1
-        % �?有被试都作为验证集，得到预测�?
+        % 所有被试都作为验证集，得到预测值
         value2pred = behav_vector; value2pred = value2pred(1:numel(predict_behav)); % matche length
 
-        value2pred((isnan(behav_pred_pos)))=[]; % 预测值是空�?�的被扔�?
+        value2pred((isnan(behav_pred_pos)))=[]; % 预测值是空值的被扔掉
         behav_pred_pos(isnan(behav_pred_pos))=[];
 
-        [R_pos, P_pos] = corr(behav_pred_pos,value2pred); % �?测正连接预测效果
+        [R_pos, P_pos] = corr(behav_pred_pos,value2pred); % 检测正连接预测效果
 
         value2pred_2 = behav_vector; value2pred_2 = value2pred_2(1:numel(predict_behav));
         
         value2pred_2((isnan(behav_pred_neg)))=[];
         behav_pred_neg(isnan(behav_pred_neg))=[];
-        [R_neg, P_neg] = corr(behav_pred_neg,value2pred_2);  % �?测负连接预测效果
+        [R_neg, P_neg] = corr(behav_pred_neg,value2pred_2);  % 检测负连接预测效果
         % compare predicted and observed scores
+        
+        % permutation得到r值分布
+        permtimes = 1e4
+        disp(['start to permutation test for ', num2str(permtimes), 'please wait']);
+        [rdist_pos, rdist_neg] = deal(zeros(permtimes,1));
+        for itimes = 1:permtimes
+            newbeh = behav_vector(randperm(sub_nums));
+            rdist_pos(itimes) = corr(newbeh, behav_pred_pos);
+            rdist_neg(itimes) = corr(newbeh, behav_pred_neg);
+        end
+
+        P_pos = sum(R_pos <= rdist_pos)/permtimes;
+        P_neg = sum(R_neg <= rdist_pos)/permtimes;
+        % permutation结束
 
         
         % 得到用正/负相关分别预测的表现
 
         CPM_Results.R_pos = R_pos;
         CPM_Results.P_pos = P_pos;
-        CPM_Results.pos_predict = behav_pred_pos; % 存预测�??
+        CPM_Results.pos_predict = behav_pred_pos; % 存预测值
         CPM_Results.pos_test = value2pred; %原始行为成绩
-        % 存储mask，如果用了sigm函数，则权重矩阵转为2值矩�?
+        % 存储mask，如果用了sigm函数，则权重矩阵转为2值矩阵
         CPM_Results.mask_pos = mask_pos_set ~= 0;
 
 
@@ -157,15 +171,15 @@ function CPM_Results = cpm_tian(fnc_mats,behav_vector,thresh_set, fold, isDirect
         lsline;title(['neg: p = ', num2str(P_neg),'|','r = ', num2str(R_neg)]);
         
         
-    elseif isDirected == 0 % 正负连接�?起预�?
+    elseif isDirected == 0 % 正负连接一起预测
         value2pred = behav_vector; value2pred = value2pred(1:numel(predict_behav)); % matche length
 
-        value2pred((isnan(predict_behav)))=[]; % 预测值是空�?�的被扔�?
+        value2pred((isnan(predict_behav)))=[]; % 预测值是空值的被扔掉
         predict_behav(isnan(predict_behav))=[];
-        [R, P] = corr(predict_behav,value2pred); % �?测正连接预测效果
+        [R, P] = corr(predict_behav,value2pred); % 检测正连接预测效果
         % [R, P] = corr(predict_behav,value2pred, 'Type', 'Spearman'); % 斯皮尔曼等级相关
         
-        % permutation得到r值分�?
+        % permutation得到r值分布
         permtimes = 1e4;
         r_dist = zeros(1,1e4);
         disp(['start to permutation test for ', num2str(permtimes), 'please wait']);
@@ -185,10 +199,10 @@ function CPM_Results = cpm_tian(fnc_mats,behav_vector,thresh_set, fold, isDirect
         CPM_Results.R = R;
         CPM_Results.P = P;
         CPM_Results.P_permtest = P_permed;
-        CPM_Results.predict = predict_behav; % 存预测�??
+        CPM_Results.predict = predict_behav; % 存预测值
         CPM_Results.topredict = value2pred; %原始行为成绩
         
-        % 存储mask，如果用了sigm函数，则权重矩阵转为2值矩�?
+        % 存储mask，如果用了sigm函数，则权重矩阵转为2值矩阵
         CPM_Results.mask_pos = mask_pos_set ~= 0;
         CPM_Results.mask_neg = mask_neg_set ~= 0; 
         
@@ -198,7 +212,7 @@ function CPM_Results = cpm_tian(fnc_mats,behav_vector,thresh_set, fold, isDirect
     end
     
     % find stable connectivity
-    criteria = 0.9;% 90% default could be
+    criteria = 1;% 90% default could be
     disp(['The default criteria for store valuable connectivity is ', num2str(criteria * 100), '%']);
     CPM_Results.stable_poslinks = squeeze(mean(CPM_Results.mask_pos, 1)) >= criteria;
     CPM_Results.stable_neglinks = squeeze(mean(CPM_Results.mask_neg, 1)) >= criteria;
