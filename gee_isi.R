@@ -5,7 +5,7 @@ library(geepack)
 gee_isi = geeglm(formula = isi ~ bmi + gender + sds +
                    anxiety + meq + first +isi_base,
                   family = gaussian, data = modeldata, 
-                 id = subid, corstr = "ar1")
+                 id = subid, corstr = "exchangeable")
 
 summary(gee_isi)
 
